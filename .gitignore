@@ -13,3 +13,9 @@ bootstrap/cache/
 phpunit.result.cache
 *.sqlite
 *.sqlite3
+# Debugging scripts
+check_notes.php
+show_search_scores.php
+
+# Laravel console (auto-generated)
+artisan
