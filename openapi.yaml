@@ -1,0 +1,464 @@
+openapi: 3.0.0
+info:
+  title: AI-Powered Notes System API
+  description: |
+    A modern RESTful API for note management with AI-powered semantic search and automatic summarization.
+    
+    **Features:**
+    - CRUD operations for notes
+    - Semantic search using AI embeddings
+    - Automatic note summarization
+    - Rate limiting (60 req/minute)
+    - Comprehensive input validation
+    
+    **Authentication:** Not required for MVP
+    
+    **Base URL:** `http://127.0.0.1:8000/api`
+  version: 1.0.0
+  contact:
+    name: Notes System Team
+    url: https://github.com/yourusername/notes-system
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://127.0.0.1:8000/api
+    description: Local development server
+  - url: https://notes-system.example.com/api
+    description: Production server
+
+tags:
+  - name: Notes
+    description: Note CRUD operations
+  - name: Search
+    description: Semantic search operations
+  - name: AI
+    description: AI-powered features
+
+paths:
+  /notes:
+    post:
+      tags:
+        - Notes
+      summary: Create a new note
+      description: Creates a new note with AI-generated embeddings for semantic search
+      operationId: createNote
+      requestBody:
+        description: Note data to create
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - content
+              properties:
+                title:
+                  type: string
+                  minLength: 3
+                  maxLength: 255
+                  example: "Learning Laravel"
+                  description: Note title
+                content:
+                  type: string
+                  minLength: 10
+                  maxLength: 5000
+                  example: "Laravel is a modern PHP framework for web development. It provides elegant syntax and powerful tools for building scalable applications."
+                  description: Full note content
+      responses:
+        '201':
+          description: Note created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoteResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '429':
+          description: Rate limit exceeded (60 requests per minute)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Too many requests"
+
+    get:
+      tags:
+        - Notes
+      summary: List all notes (paginated)
+      description: Retrieves a paginated list of all notes
+      operationId: listNotes
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          description: Items per page (max 100)
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: List of notes with pagination
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Note'
+                  links:
+                    type: object
+                    properties:
+                      first:
+                        type: string
+                      last:
+                        type: string
+                      prev:
+                        type: string
+                        nullable: true
+                      next:
+                        type: string
+                        nullable: true
+                  meta:
+                    type: object
+                    properties:
+                      current_page:
+                        type: integer
+                      from:
+                        type: integer
+                      last_page:
+                        type: integer
+                      path:
+                        type: string
+                      per_page:
+                        type: integer
+                      to:
+                        type: integer
+                      total:
+                        type: integer
+
+  /notes/{id}:
+    get:
+      tags:
+        - Notes
+      summary: Get a single note
+      description: Retrieves a specific note by ID
+      operationId: getNote
+      parameters:
+        - name: id
+          in: path
+          description: Note ID
+          required: true
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Note retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoteResponse'
+        '404':
+          description: Note not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Note not found"
+
+    put:
+      tags:
+        - Notes
+      summary: Update a note
+      description: Updates a note and regenerates its AI embeddings
+      operationId: updateNote
+      parameters:
+        - name: id
+          in: path
+          description: Note ID
+          required: true
+          schema:
+            type: integer
+            example: 1
+      requestBody:
+        description: Updated note data
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 3
+                  maxLength: 255
+                  example: "Updated Title"
+                content:
+                  type: string
+                  minLength: 10
+                  maxLength: 5000
+                  example: "Updated content..."
+      responses:
+        '200':
+          description: Note updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoteResponse'
+        '404':
+          description: Note not found
+        '422':
+          description: Validation error
+
+    delete:
+      tags:
+        - Notes
+      summary: Delete a note
+      description: Soft deletes a note (data preserved in database)
+      operationId: deleteNote
+      parameters:
+        - name: id
+          in: path
+          description: Note ID
+          required: true
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Note deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Note deleted successfully"
+        '404':
+          description: Note not found
+
+  /notes/search:
+    post:
+      tags:
+        - Search
+      summary: Semantic search
+      description: |
+        Performs AI-powered semantic search across all notes.
+        
+        The search converts your query into an AI embedding and finds notes
+        with similar semantic meaning, even if they don't contain exact keywords.
+      operationId: searchNotes
+      requestBody:
+        description: Search parameters
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - q
+              properties:
+                q:
+                  type: string
+                  minLength: 3
+                  maxLength: 100
+                  example: "machine learning concepts"
+                  description: Search query
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 10
+                  example: 5
+                  description: Maximum number of results
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                    example: "machine learning concepts"
+                  count:
+                    type: integer
+                    example: 3
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Note'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /notes/{id}/summary:
+    post:
+      tags:
+        - AI
+      summary: Generate note summary
+      description: |
+        Generates an AI-powered summary of the note content.
+        
+        - Mock mode: Extracts first 2 sentences
+        - Production mode: Uses GPT-3.5-turbo for quality summaries
+      operationId: generateSummary
+      parameters:
+        - name: id
+          in: path
+          description: Note ID
+          required: true
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Summary generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+                  summary:
+                    type: string
+                    example: "This is a concise summary of the note content. It captures the main ideas in 2-3 sentences."
+        '404':
+          description: Note not found
+        '503':
+          description: AI service unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to generate summary"
+                  message:
+                    type: string
+                    example: "API service error details"
+
+components:
+  schemas:
+    Note:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: "Learning Laravel"
+        content:
+          type: string
+          example: "Laravel is a modern PHP framework..."
+        summary:
+          type: string
+          nullable: true
+          example: "Laravel is a PHP framework for building web applications."
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-05-22T12:00:00.000000Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-05-22T12:00:00.000000Z"
+
+    NoteResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Note'
+
+    ValidationError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "The given data was invalid"
+        errors:
+          type: object
+          example:
+            title:
+              - "The title field is required."
+            content:
+              - "The content must be at least 10 characters."
+
+  responses:
+    UnauthorizedResponse:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "Unauthorized"
+
+    NotFoundResponse:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "Not found"
+
+    RateLimitResponse:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "Too many requests"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Optional bearer token for future authentication"
+
+security: []
+
+externalDocs:
+  description: Find more information in the README
+  url: "https://github.com/yourusername/notes-system#readme"

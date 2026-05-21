@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # PHP Application Service
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notes_app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    networks:
+      - notes_network
+    environment:
+      - APP_NAME="Notes System"
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - APP_KEY=base64:g6jSY0S3g1G7wN8oP9qR4sT5uV6wX7yZ8aBcDeFgHiJ=
+      - DB_CONNECTION=sqlite
+      - OPENAI_API_KEY=
+    depends_on:
+      - db
+
+  # Nginx Web Server
+  nginx:
+    image: nginx:alpine
+    container_name: notes_nginx
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx/conf.d/app.conf:/etc/nginx/conf.d/app.conf
+    networks:
+      - notes_network
+    depends_on:
+      - app
+
+  # SQLite Database (file-based, included in volume mount)
+  db:
+    image: alpine:latest
+    container_name: notes_db
+    restart: unless-stopped
+    volumes:
+      - db_data:/var/www/html/database
+    networks:
+      - notes_network
+    command: tail -f /dev/null
+
+  # Optional: Redis for caching (uncomment to enable)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: notes_redis
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   networks:
+  #     - notes_network
+
+  # Optional: PHPMyAdmin for database inspection (uncomment to enable)
+  # phpmyadmin:
+  #   image: phpmyadmin:latest
+  #   container_name: notes_phpmyadmin
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8001:80"
+  #   environment:
+  #     PMA_HOST: db
+  #     PMA_USER: root
+  #     PMA_PASSWORD:
+  #   networks:
+  #     - notes_network
+  #   depends_on:
+  #     - db
+
+networks:
+  notes_network:
+    driver: bridge
+
+volumes:
+  db_data:
+    driver: local
+  # redis_data:
+  #   driver: local
